@@ -2,8 +2,12 @@
 name = "shot"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["George Miao <gm@miao.dev>"]
+license = "MIT"
+description =  "Simple CLI that upload images to Cloudflare Image, either from clipboard, or local file."
+repository = "https://github.com/George-Miao/shot"
+categories = ["command-line-utilities"]
+keywords = ["cli", "cloudflare", "image"]
 
 [dependencies]
 attohttpc       = { version = "0.18.0", features = ["multipart-form", "json"] }
@@ -29,4 +33,7 @@ ron             = "0.7.0"
 [profile.dev.package.backtrace]
 opt-level = 3
 
-[features]
+[profile.release]
+opt-level = 'z'
+codegen-units = 1
+panic = 'abort'
