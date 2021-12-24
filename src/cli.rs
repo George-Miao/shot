@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use arboard::Clipboard;
-use clap::{Parser, Subcommand};
+use clap::{crate_authors, crate_description, crate_version, Parser, Subcommand};
 use color_eyre::{
     eyre::{Context, ContextCompat},
     owo_colors::OwoColorize,
@@ -18,6 +18,11 @@ pub const CONFIG_PATH: &str = ".config/shot.ron";
 pub const BIN_NAME: &str = clap::crate_name!();
 
 #[derive(Parser, Debug)]
+#[clap(
+    about = crate_description!(),
+    author = crate_authors!(),
+    version = crate_version!()
+)]
 pub struct Opt {
     #[clap(subcommand)]
     cmd: Option<Cmd>,
@@ -33,6 +38,7 @@ pub struct Flag {
 }
 
 #[derive(Subcommand, Debug)]
+
 pub enum Cmd {
     /// Auth of Cloudflare API.
     /// Currently only supports account_id + token pair
