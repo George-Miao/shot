@@ -1,12 +1,9 @@
-use clap::StructOpt;
-use color_eyre::eyre::Result;
-use mod_use::mod_use;
+use clap::Parser;
+use color_eyre::eyre::{Context, Result};
 
-mod_use![cli, api, model, config, util];
+mod_use::mod_use![cli, api, model, config, util];
 
 fn main() -> Result<()> {
-    color_eyre::install()?;
-    init_logger()?;
-
+    init().wrap_err("Internal error")?;
     Opt::parse().handle()
 }

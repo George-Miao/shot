@@ -47,12 +47,12 @@ impl API {
             .send()
             .wrap_err("Failed to request API")?;
         let is_success = res.is_success();
-        let res_text = res.text().wrap_err("Bad response")?;
+        let res_text = res.text().wrap_err("Bad response")?.replace('\n', "");
         debug!("{}", res_text);
         if is_success {
             Ok(())
         } else {
-            Err(eyre!("{}", res_text).wrap_err("Unable to verify the auth pair"))
+            Err(eyre!("Response: {}", res_text).wrap_err("Unable to verify the auth pair"))
         }
     }
 

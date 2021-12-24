@@ -2,6 +2,7 @@ use std::time;
 
 use arboard::ImageData;
 use color_eyre::{
+    config::HookBuilder,
     eyre::{Context, ContextCompat},
     owo_colors::OwoColorize,
     Result,
@@ -135,4 +136,12 @@ impl Response<Image> {
             error!("Bad response: {:#?}", self)
         };
     }
+}
+
+pub fn init() -> Result<()> {
+    HookBuilder::default()
+        .display_env_section(false)
+        .install()?;
+    init_logger()?;
+    Ok(())
 }
