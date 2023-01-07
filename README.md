@@ -1,18 +1,18 @@
 # Shot
 
-Simple CLI that upload images to [Cloudflare Image](https://www.cloudflare.com/products/cloudflare-images/), either from clipboard, or local file.
+Simple CLI that uploads images to [Cloudflare Image](https://www.cloudflare.com/products/cloudflare-images/), either from the system clipboard, or a local file.
 
 ## Install
 
 Install from [crates.io](https://crates.io).
 
 ```bash
-$ cargo install shot
+cargo install shot
 ```
 
 ## Usage
 
-```
+```plain
 shot
 
 USAGE:
