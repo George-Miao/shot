@@ -8,8 +8,8 @@ use color_eyre::{
     Result,
 };
 use home::home_dir;
-use image::{io::Reader, GenericImageView};
-use log::{error, info};
+use image::{imageops::FilterType, io::Reader, GenericImageView};
+use log::{debug, error, info};
 use tap::Pipe;
 
 use crate::{image_data_to_png, image_name, Auth, Config};
@@ -159,7 +159,7 @@ impl Opt {
                 };
 
                 let (w, h) = (image.width, image.height);
-                let png = image_data_to_png(image)?;
+                let png = image_data_to_png(&image)?;
                 let size = bytesize::to_string(png.len().try_into()?, true);
 
                 info!(
@@ -192,6 +192,7 @@ impl Opt {
                 let config = Config::from_dir(config_path)?;
                 let api = config.as_api()?;
 
+                info!("Reading file");
                 let img = Reader::open(&file_path)
                     .wrap_err("Failed to open img file")?
                     .decode()
@@ -201,12 +202,35 @@ impl Opt {
                     .len()
                     .pipe(Vec::with_capacity)
                     .pipe(Cursor::new);
+
+                info!("Encoding image");
+
                 img.write_to(&mut buf, image::ImageFormat::Png)
                     .wrap_err("Unable to encode image")?;
 
-                let (w, h) = img.dimensions();
-                let buf = buf.into_inner();
-                let size = bytesize::to_string(buf.len().try_into()?, true);
+                let (mut w, mut h) = img.dimensions();
+                // let mut buf = buf.get_ref().len();
+                let mut len = buf.get_ref().len();
+
+                // Cloudflare images has a 10 MB size limit
+                // See: https://developers.cloudflare.com/images/cloudflare-images/upload-images/formats-limitations/
+                if len > 10_000_000 {
+                    let size = bytesize::to_string(len.try_into()?, true);
+                    info!("Image too big ({}), resizing", size.yellow());
+                    let ratio = (len as f64 / (3_000_000) as f64).sqrt();
+                    debug!("Resize ratio: {ratio}");
+                    w = (w as f64 / ratio) as u32;
+                    h = (h as f64 / ratio) as u32;
+
+                    let mut vec = buf.into_inner();
+                    vec.clear();
+                    buf = Cursor::new(vec);
+                    img.resize(w, h, FilterType::Gaussian)
+                        .write_to(&mut buf, image::ImageFormat::Png)
+                        .wrap_err("Unable to encode image")?;
+                    len = buf.get_ref().len();
+                }
+                let size = bytesize::to_string(len.try_into()?, true);
 
                 let filename = file_name
                     .or_else(|| {
@@ -215,6 +239,8 @@ impl Opt {
                             .and_then(|x| x.to_str().map(ToOwned::to_owned).map(|x| x + ".png"))
                     })
                     .unwrap_or_else(image_name);
+
+                let buf = buf.into_inner();
 
                 info!(
                     "Image ({}): {} x {}, {}",

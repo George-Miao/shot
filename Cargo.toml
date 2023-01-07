@@ -29,11 +29,8 @@ home            = "0.5.4"
 ron             = "0.8.0"
 tap             = "1.0.1"
 
-# Workaround for debug performence panualty by color-eyre
-[profile.dev.package.backtrace]
-opt-level = 3
-
 [profile.release]
+strip         = true
 opt-level     = 'z'
 codegen-units = 1
 panic         = 'unwind'

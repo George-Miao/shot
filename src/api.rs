@@ -146,6 +146,8 @@ impl<'a> Upload<'a> {
             .bearer_auth(&self.api.token)
             .send()
             .wrap_err("Failed to request API")?
+            .error_for_status()
+            .wrap_err("Failed to request API")?
             .json()
             .wrap_err("Failed to parse response json")?;
 

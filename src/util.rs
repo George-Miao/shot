@@ -8,21 +8,22 @@ use color_eyre::{
     Result,
 };
 use humantime::{format_rfc3339, format_rfc3339_seconds};
-use image::{codecs::png::PngEncoder, ColorType, EncodableLayout, ImageEncoder, RgbaImage};
+use image::{codecs::png::PngEncoder, ColorType, EncodableLayout, ImageBuffer, ImageEncoder, Rgba};
 use log::{error, info};
 use url::Url;
 
 use crate::{Image, Response};
 
-pub fn image_data_to_png(data: ImageData) -> Result<Vec<u8>> {
+pub fn image_data_to_png(data: &ImageData) -> Result<Vec<u8>> {
     let size = data.bytes.len();
     let width: u32 = data.width.try_into().wrap_err("Image width too big")?;
     let height: u32 = data.height.try_into().wrap_err("Image height too big")?;
-    let img = RgbaImage::from_raw(width, height, data.bytes.to_vec())
+    let img = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, data.bytes.as_ref())
         .wrap_err("Bad `ImageData`")
         .wrap_err("Unable to convert raw pixels to encodable RgbaImage")?;
     let mut buf = Vec::with_capacity(size);
     PngEncoder::new(&mut buf).write_image(img.as_bytes(), width, height, ColorType::Rgba8)?;
+
     Ok(buf)
 }
 
