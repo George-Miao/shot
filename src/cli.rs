@@ -1,7 +1,7 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{io::Cursor, path::PathBuf, str::FromStr};
 
 use arboard::Clipboard;
-use clap::{crate_authors, crate_description, crate_version, Parser, Subcommand};
+use clap::{ColorChoice, Parser, Subcommand};
 use color_eyre::{
     eyre::{Context, ContextCompat},
     owo_colors::OwoColorize,
@@ -10,6 +10,7 @@ use color_eyre::{
 use home::home_dir;
 use image::{io::Reader, GenericImageView};
 use log::{error, info};
+use tap::Pipe;
 
 use crate::{image_data_to_png, image_name, Auth, Config};
 
@@ -18,11 +19,8 @@ pub const CONFIG_PATH: &str = ".config/shot.ron";
 pub const BIN_NAME: &str = clap::crate_name!();
 
 #[derive(Parser, Debug)]
-#[clap(
-    about = crate_description!(),
-    author = crate_authors!(),
-    version = crate_version!()
-)]
+#[clap(author, version, about, color = ColorChoice::Always)]
+#[clap(propagate_version = true)]
 pub struct Opt {
     #[clap(subcommand)]
     cmd: Option<Cmd>,
@@ -49,12 +47,13 @@ pub enum Cmd {
     /// Upload image in clipboard to Cloudflare Image
     Paste {
         #[clap(short = 'n', long)]
-        /// Filename of the image, default to upload time in rfc3999 format (e.g. 2021-12-20T01:01:01Z.png)
+        /// Filename of the image, default to upload time in rfc3999 format
+        /// (e.g. 2021-12-20T01:01:01Z.png)
         file_name: Option<String>,
 
         #[clap(short, long)]
-        /// User modifyable key-value store that binds to image. Takes multiple value
-        /// Format: $KEY=$VALUE
+        /// User modifyable key-value store that binds to image. Takes multiple
+        /// value Format: $KEY=$VALUE
         metadata: Vec<KV>,
     },
     /// Encode local images to PNG and upload to Cloudflare Images.
@@ -69,8 +68,8 @@ pub enum Cmd {
         file_name: Option<String>,
 
         #[clap(short, long)]
-        /// User modifyable key-value store that binds to image. Takes multiple value
-        /// Format: $KEY=$VALUE
+        /// User modifyable key-value store that binds to image. Takes multiple
+        /// value Format: $KEY=$VALUE
         metadata: Vec<KV>,
     },
 }
@@ -90,8 +89,16 @@ pub struct KV {
     v: String,
 }
 
+impl KV {
+    fn as_pair(&self) -> (&str, &str) {
+        let KV { k, v } = self;
+        (k, v)
+    }
+}
+
 impl FromStr for KV {
     type Err = color_eyre::eyre::Error;
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut splitted = s.splitn(2, '=');
         let k = splitted
@@ -112,8 +119,11 @@ impl Opt {
             .wrap_err("Cannot determine home directory")?
             .join(CONFIG_PATH);
         let flag = self.flag;
-        match self.cmd.unwrap_or_else(||{
-            info!("Use `{BIN_NAME}` without subcommand defaults to `{BIN_NAME} paste`. If this is not intended, add a subcommand. Use `{BIN_NAME} -h` for more information.");
+        match self.cmd.unwrap_or_else(|| {
+            info!(
+                "Use `{BIN_NAME}` without subcommand defaults to `{BIN_NAME} paste`. If this is \
+                 not intended, add a subcommand. Use `{BIN_NAME} -h` for more information."
+            );
             Default::default()
         }) {
             Cmd::Auth { auth } => {
@@ -123,14 +133,17 @@ impl Opt {
 
                 if flag.dry_run {
                     info!("with --dry-run, furthur actions are avoided.");
-                    return Ok(())
+                    return Ok(());
                 }
 
                 config.write_to(config_path)?;
                 info!("Done adding authentication!");
                 Ok(())
             }
-            Cmd::Paste { file_name, metadata } => {
+            Cmd::Paste {
+                file_name,
+                metadata,
+            } => {
                 let config = Config::from_dir(config_path)?;
                 let api = config.as_api()?;
                 let mut cb = Clipboard::new()?;
@@ -149,14 +162,19 @@ impl Opt {
                 let png = image_data_to_png(image)?;
                 let size = bytesize::to_string(png.len().try_into()?, true);
 
-                info!("Image in clipboard: {} x {}, {}", w.green(), h.green(), size.blue());
+                info!(
+                    "Image in clipboard: {} x {}, {}",
+                    w.green(),
+                    h.green(),
+                    size.blue()
+                );
 
                 let mut upload = api.upload(&filename, &png);
-                upload.extend_meta(metadata.iter().map(|x| (x.k.as_str(), x.v.as_str())));
+                upload.extend_meta(metadata.iter().map(KV::as_pair));
 
                 if flag.dry_run {
                     info!("with --dry-run, furthur actions are avoided.");
-                    return Ok(())
+                    return Ok(());
                 }
 
                 info!("Uploading image...");
@@ -169,30 +187,49 @@ impl Opt {
             Cmd::Upload {
                 file_path,
                 metadata,
-                file_name
+                file_name,
             } => {
                 let config = Config::from_dir(config_path)?;
                 let api = config.as_api()?;
 
-                let img = Reader::open(&file_path).wrap_err("Failed to open img file")?.decode().wrap_err("Unsupported img format")?;
-                let mut buf = Vec::with_capacity(img.as_bytes().len());
-                img.write_to(&mut buf, image::ImageFormat::Png).wrap_err("Unable to encode image")?;
+                let img = Reader::open(&file_path)
+                    .wrap_err("Failed to open img file")?
+                    .decode()
+                    .wrap_err("Unsupported img format")?;
+                let mut buf = img
+                    .as_bytes()
+                    .len()
+                    .pipe(Vec::with_capacity)
+                    .pipe(Cursor::new);
+                img.write_to(&mut buf, image::ImageFormat::Png)
+                    .wrap_err("Unable to encode image")?;
 
                 let (w, h) = img.dimensions();
+                let buf = buf.into_inner();
                 let size = bytesize::to_string(buf.len().try_into()?, true);
 
-                let filename = file_name.or_else(||
-                    file_path.file_stem().and_then(|x| x.to_str().map(ToOwned::to_owned).map(|x| x + ".png"))
-                ).unwrap_or_else(image_name);
+                let filename = file_name
+                    .or_else(|| {
+                        file_path
+                            .file_stem()
+                            .and_then(|x| x.to_str().map(ToOwned::to_owned).map(|x| x + ".png"))
+                    })
+                    .unwrap_or_else(image_name);
 
-                info!("Image ({}): {} x {}, {}", filename, w.green(), h.green(), size.blue());
+                info!(
+                    "Image ({}): {} x {}, {}",
+                    filename,
+                    w.green(),
+                    h.green(),
+                    size.blue()
+                );
 
                 let mut upload = api.upload(&filename, &buf);
-                upload.extend_meta(metadata.iter().map(|x| (x.k.as_str(), x.v.as_str())));
+                upload.extend_meta(metadata.iter().map(|KV { k, v }| (k.as_str(), v.as_str())));
 
                 if flag.dry_run {
                     info!("with --dry-run, furthur actions are avoided.");
-                    return Ok(())
+                    return Ok(());
                 }
 
                 info!("Uploading image...");
@@ -200,7 +237,7 @@ impl Opt {
                 upload.send().wrap_err("Failed to upload image")?.log();
 
                 Ok(())
-            },
+            }
         }
     }
 }

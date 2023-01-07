@@ -26,8 +26,9 @@ impl Config {
         } else {
             let err = eyre!("For more help, see https://github.com/George-Miao/shot#help")
                 .wrap_err(format!(
-                "Use `{BIN_NAME} auth <account_id> <token>` or manually edit `~/{CONFIG_PATH}`."
-            ))
+                    "Use `{BIN_NAME} auth <account_id> <token>` or manually edit \
+                     `~/{CONFIG_PATH}`."
+                ))
                 .wrap_err("You haven't config your authentication info yet");
             Err(err)
         }
@@ -56,6 +57,7 @@ impl Config {
 }
 
 #[derive(Ser, De, Debug, Parser, Clone, PartialEq, Eq)]
+#[group(skip)]
 pub struct Auth {
     pub account_id: String,
     pub token: String,

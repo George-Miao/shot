@@ -26,7 +26,7 @@ impl API {
         let this = Self {
             api: Url::parse(Self::API)
                 .unwrap()
-                .join(&format!("accounts/{}/images/v1", account_id))
+                .join(&format!("accounts/{account_id}/images/v1"))
                 .wrap_err("Bad `account_id`")?,
             account_id,
             token,

@@ -8,7 +8,7 @@ use color_eyre::{
     Result,
 };
 use humantime::{format_rfc3339, format_rfc3339_seconds};
-use image::{png::PngEncoder, ColorType, EncodableLayout, ImageEncoder, RgbaImage};
+use image::{codecs::png::PngEncoder, ColorType, EncodableLayout, ImageEncoder, RgbaImage};
 use log::{error, info};
 use url::Url;
 
@@ -77,7 +77,7 @@ mod logger {
             .wrap_err("Failed to init logger")
     }
 
-    fn colored_level<'a>(style: &'a mut Style, level: Level) -> StyledValue<'a, &'static str> {
+    fn colored_level(style: &mut Style, level: Level) -> StyledValue<&'static str> {
         match level {
             Level::Trace => style
                 .set_bold(true)
@@ -101,7 +101,7 @@ impl Response<Image> {
         }
 
         if !self.success {
-            error!("API returns an error");
+            error!("API returned an error:");
 
             self.errors
                 .iter()
